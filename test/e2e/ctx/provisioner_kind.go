@@ -1,3 +1,4 @@
+//go:build kind
 // +build kind
 
 package ctx
@@ -7,7 +8,6 @@ import (
 	"encoding/csv"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -68,7 +68,7 @@ func (kl kindLogAdapter) V(log.Level) log.InfoLogger {
 }
 
 func Provision(ctx *TestContext) (func(), error) {
-	dir, err := ioutil.TempDir("", "kind.")
+	dir, err := os.MkdirTemp("", "kind.")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temporary directory: %s", err.Error())
 	}
@@ -91,8 +91,8 @@ func Provision(ctx *TestContext) (func(), error) {
 		name,
 		cluster.CreateWithV1Alpha4Config(&v1alpha4.Cluster{
 			ContainerdConfigPatches: []string{
-				fmt.Sprintf(`[plugins."io.containerd.grpc.v1.cri".registry.mirrors."localhost:%[2]d"]
-  endpoint = ["http://%[1]s:%[2]d"]`, registry, registryPort),
+				`[plugins."io.containerd.grpc.v1.cri".registry]
+  config_path = "/etc/containerd/certs.d"`,
 			},
 		}),
 		cluster.CreateWithWaitForReady(5*time.Minute),
@@ -104,6 +104,20 @@ func Provision(ctx *TestContext) (func(), error) {
 	nodes, err := provider.ListNodes(name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list kind nodes: %s", err.Error())
+	}
+
+	// Configure registry on each node using the new hosts.toml approach
+	registryDir := fmt.Sprintf("/etc/containerd/certs.d/localhost:%d", registryPort)
+	hostsToml := fmt.Sprintf(`[host."http://%s:%d"]`, registry, registryPort)
+	for _, node := range nodes {
+		// Create the registry directory
+		if err := node.Command("mkdir", "-p", registryDir).Run(); err != nil {
+			return nil, fmt.Errorf("failed to create registry directory on node: %s", err.Error())
+		}
+		// Write the hosts.toml file
+		if err := nodeutils.WriteFile(node, fmt.Sprintf("%s/hosts.toml", registryDir), hostsToml); err != nil {
+			return nil, fmt.Errorf("failed to write hosts.toml on node: %s", err.Error())
+		}
 	}
 
 	var archives []string

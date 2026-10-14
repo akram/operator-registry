@@ -1,3 +1,4 @@
+//go:build !kind
 // +build !kind
 
 package ctx
@@ -25,6 +26,7 @@ func Provision(ctx *TestContext) (func(), error) {
 	}
 
 	f, err := os.Open(path)
+	// nolint:nestif
 	if os.IsNotExist(err) {
 		// try in-cluster config
 		// see https://github.com/coreos/etcd-operator/issues/731#issuecomment-283804819

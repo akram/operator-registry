@@ -1,9 +1,10 @@
 package bundle
 
 import (
-	"github.com/operator-framework/operator-registry/pkg/lib/bundle"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+
+	"github.com/operator-framework/operator-registry/pkg/lib/bundle"
 )
 
 var (
@@ -15,6 +16,7 @@ var (
 	defaultChannel string
 	outputDir      string
 	overwrite      bool
+	baseImage      string
 )
 
 // newBundleBuildCmd returns a command that will build operator bundle image.
@@ -23,25 +25,25 @@ func newBundleBuildCmd() *cobra.Command {
 		Use:   "build",
 		Short: "Build operator bundle image",
 		Long: `The "opm alpha bundle build" command will generate operator
-        bundle metadata if needed and build bundle image with operator manifest
-        and metadata for a specific version.
+bundle metadata if needed and build bundle image with operator manifest
+and metadata for a specific version.
 
-        For example: The command will generate annotations.yaml metadata plus
-        Dockerfile for bundle image and then build a container image from
-        provided operator bundle manifests generated metadata
-        e.g. "quay.io/example/operator:v0.0.1".
+For example: The command will generate annotations.yaml metadata plus
+Dockerfile for bundle image and then build a container image from
+provided operator bundle manifests generated metadata
+e.g. "quay.io/example/operator:v0.0.1".
 
-        After the build process is completed, a container image would be built
-        locally in docker and available to push to a container registry.
+After the build process is completed, a container image would be built
+locally in docker and available to push to a container registry.
 
-        $ opm alpha bundle build --directory /test/0.1.0/ --tag quay.io/example/operator:v0.1.0 \
-		--package test-operator --channels stable,beta --default stable --overwrite
+$ opm alpha bundle build --directory /test/0.1.0/ --tag quay.io/example/operator:v0.1.0 \
+	--package test-operator --channels stable,beta --default stable --overwrite
 
-		Note:
-		* Bundle image is not runnable.
-		* All manifests yaml must be in the same directory. 
-        `,
+Note:
+* Bundle image is not runnable.
+* All manifests yaml must be in the same directory. `,
 		RunE: buildFunc,
+		Args: cobra.NoArgs,
 	}
 
 	bundleBuildCmd.Flags().StringVarP(&buildDir, "directory", "d", "",
@@ -76,10 +78,13 @@ func newBundleBuildCmd() *cobra.Command {
 	bundleBuildCmd.Flags().StringVarP(&outputDir, "output-dir", "u", "",
 		"Optional output directory for operator manifests")
 
+	bundleBuildCmd.Flags().StringVar(&baseImage, "base-image", "scratch",
+		"Use a custom image pullspec as the base bundle image")
+
 	return bundleBuildCmd
 }
 
-func buildFunc(cmd *cobra.Command, args []string) error {
+func buildFunc(cmd *cobra.Command, _ []string) error {
 	return bundle.BuildFunc(
 		buildDir,
 		outputDir,
@@ -89,5 +94,6 @@ func buildFunc(cmd *cobra.Command, args []string) error {
 		channels,
 		defaultChannel,
 		overwrite,
+		baseImage,
 	)
 }

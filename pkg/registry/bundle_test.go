@@ -2,19 +2,18 @@ package registry
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
-	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
-
 	"github.com/stretchr/testify/require"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 const (
@@ -31,16 +30,16 @@ func TestV1CRDsInBundle(t *testing.T) {
 	})
 
 	// Read all files in manifests directory
-	items, err := ioutil.ReadDir(manifestDir)
+	items, err := os.ReadDir(manifestDir)
 	if err != nil {
 		t.Fatalf("reading manifests directory: %s", err)
 	}
 
 	// unmarshal objects into unstructured
-	unstObjs := []*unstructured.Unstructured{}
+	unstObjs := make([]*unstructured.Unstructured, 0, len(items))
 	for _, item := range items {
 		fileWithPath := filepath.Join(manifestDir, item.Name())
-		data, err := ioutil.ReadFile(fileWithPath)
+		data, err := os.ReadFile(fileWithPath)
 		if err != nil {
 			t.Fatalf("reading manifests directory file %s: %s", fileWithPath, err)
 		}
@@ -63,10 +62,11 @@ func TestV1CRDsInBundle(t *testing.T) {
 
 	// check provided APIs in bundle are what is expected
 	expectedAPIs := map[APIKey]struct{}{
-		APIKey{Group: "objectbucket.io", Version: "v1alpha1", Kind: "ObjectBucket", Plural: "objectbuckets"}:           {},
-		APIKey{Group: "objectbucket.io", Version: "v1alpha1", Kind: "ObjectBucketClaim", Plural: "objectbucketclaims"}: {},
+		{Group: "objectbucket.io", Version: "v1alpha1", Kind: "ObjectBucket", Plural: "objectbuckets"}:           {},
+		{Group: "objectbucket.io", Version: "v1alpha1", Kind: "ObjectBucketClaim", Plural: "objectbucketclaims"}: {},
 	}
 	providedAPIs, err := bundle.ProvidedAPIs()
+	require.NoError(t, err)
 	t.Logf("provided CRDs: \n%#v", providedAPIs)
 
 	if !reflect.DeepEqual(expectedAPIs, providedAPIs) {
@@ -77,6 +77,7 @@ func TestV1CRDsInBundle(t *testing.T) {
 	// bundle contains one v1beta1 and one v1 CRD
 	dec := serializer.NewCodecFactory(Scheme).UniversalDeserializer()
 	crds, err := bundle.CustomResourceDefinitions()
+	require.NoError(t, err)
 	for _, crd := range crds {
 		switch crd.(type) {
 		case *apiextensionsv1.CustomResourceDefinition:

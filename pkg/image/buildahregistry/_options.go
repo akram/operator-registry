@@ -1,15 +1,16 @@
+//go:build ignore
 // +build ignore
+
 package buildahregistry
 
 import (
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
 	"sync"
 
-	"github.com/containers/storage"
 	"github.com/sirupsen/logrus"
+	"go.podman.io/storage"
 )
 
 type RegistryConfig struct {
@@ -93,7 +94,7 @@ func NewRegistry(options ...RegistryOption) (registry *Registry, destroy func() 
 	}
 
 	// TODO: probably don't want the signature policy to be here
-	ioutil.WriteFile(path.Join(config.CacheDir, "policy.json"), []byte(`
+	os.WriteFile(path.Join(config.CacheDir, "policy.json"), []byte(`
 {
     "default": [
         {

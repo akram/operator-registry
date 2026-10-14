@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
+	"github.com/operator-framework/operator-registry/cmd/opm/internal/util"
 	"github.com/operator-framework/operator-registry/pkg/image"
 	"github.com/operator-framework/operator-registry/pkg/image/containerdregistry"
 	"github.com/operator-framework/operator-registry/pkg/lib/bundle"
@@ -28,11 +28,16 @@ func newBundleUnpackCmd() *cobra.Command {
 		RunE: unpackBundle,
 	}
 	unpack.Flags().BoolP("debug", "d", false, "enable debug log output")
-	unpack.Flags().BoolP("skip-tls", "s", false, "disable TLS verification")
+	unpack.Flags().BoolP("skip-tls", "s", false, "use plain HTTP")
+	unpack.Flags().Bool("skip-tls-verify", false, "disable TLS verification")
+	unpack.Flags().Bool("use-http", false, "use plain HTTP")
 	unpack.Flags().BoolP("skip-validation", "v", false, "disable bundle validation")
 	unpack.Flags().StringP("root-ca", "c", "", "file path of a root CA to use when communicating with image registries")
 	unpack.Flags().StringP("out", "o", "./", "directory in which to unpack operator bundle content")
 
+	if err := unpack.Flags().MarkDeprecated("skip-tls", "use --use-http and --skip-tls-verify instead"); err != nil {
+		logrus.Panic(err.Error())
+	}
 	return unpack
 }
 
@@ -53,6 +58,7 @@ func unpackBundle(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// nolint:nestif
 	if info, err := os.Stat(out); err != nil {
 		if os.IsNotExist(err) {
 			err = os.MkdirAll(out, 0755)
@@ -71,13 +77,14 @@ func unpackBundle(cmd *cobra.Command, args []string) error {
 
 	var (
 		registryOpts []containerdregistry.RegistryOption
-		skipTLS      bool
 	)
-	skipTLS, err = cmd.Flags().GetBool("skip-tls")
+
+	skipTLSVerify, useHTTP, err := util.GetTLSOptions(cmd)
 	if err != nil {
 		return err
 	}
-	registryOpts = append(registryOpts, containerdregistry.SkipTLS(skipTLS))
+
+	registryOpts = append(registryOpts, containerdregistry.SkipTLSVerify(skipTLSVerify), containerdregistry.WithPlainHTTP(useHTTP))
 
 	var skipValidation bool
 	skipValidation, err = cmd.Flags().GetBool("skip-validation")
@@ -92,7 +99,7 @@ func unpackBundle(cmd *cobra.Command, args []string) error {
 	}
 	if rootCA != "" {
 		rootCAs := x509.NewCertPool()
-		certs, err := ioutil.ReadFile(rootCA)
+		certs, err := os.ReadFile(rootCA)
 		if err != nil {
 			return err
 		}
@@ -122,7 +129,7 @@ func unpackBundle(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	dir, err := ioutil.TempDir("", "bundle-")
+	dir, err := os.MkdirTemp("", "bundle-")
 	if err != nil {
 		return err
 	}

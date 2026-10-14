@@ -1,7 +1,11 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"os"
+	"os/signal"
+	"syscall"
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 
@@ -10,17 +14,24 @@ import (
 )
 
 func main() {
-	cmd := root.NewCmd()
-	if err := cmd.Execute(); err != nil {
-		agg, ok := err.(utilerrors.Aggregate)
-		if !ok {
+	showAlphaHelp := os.Getenv("HELP_ALPHA") == "true"
+	cmd := root.NewCmd(showAlphaHelp)
+
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
+	if err := cmd.ExecuteContext(ctx); err != nil {
+		var agg utilerrors.Aggregate
+		if !errors.As(err, &agg) {
 			os.Exit(1)
 		}
 		for _, e := range agg.Errors() {
-			if _, ok := e.(registrylib.BundleImageAlreadyAddedErr); ok {
+			var bundleAlreadyAddedErr registrylib.BundleImageAlreadyAddedErr
+			if errors.As(e, &bundleAlreadyAddedErr) {
 				os.Exit(2)
 			}
-			if _, ok := e.(registrylib.PackageVersionAlreadyAddedErr); ok {
+			var packageVersionAlreadyAddedErr registrylib.PackageVersionAlreadyAddedErr
+			if errors.As(e, &packageVersionAlreadyAddedErr) {
 				os.Exit(3)
 			}
 		}

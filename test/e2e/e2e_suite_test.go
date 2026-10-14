@@ -7,8 +7,9 @@ import (
 	"os/exec"
 	"testing"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	"github.com/spf13/cobra"
 
 	opmroot "github.com/operator-framework/operator-registry/cmd/opm/root"
@@ -24,10 +25,15 @@ var (
 	dockerPassword = os.Getenv("DOCKER_PASSWORD")
 	dockerHost     = os.Getenv("DOCKER_REGISTRY_HOST") // 'DOCKER_HOST' is reserved for the docker daemon
 
+	// default domain name of the test image (overwritten by "IMAGE_DOMAIN" env variable)
+	imageDomain   = "olmtest"
+	imageRegistry = dockerHost + "/" + imageDomain
+
 	// opm command under test.
 	opm *cobra.Command
 
-	skipTLSForRegistry = flag.Bool("skip-tls", false, "skip TLS certificate verification for container image registries while pulling bundles or index")
+	skipTLSForRegistry = flag.Bool("skip-tls-verify", false, "skip TLS certificate verification for container image registries while pulling bundles or index")
+	useHTTPforRegistry = flag.Bool("use-http", false, "use HTTP for container image registries while pulling bundles or index")
 )
 
 func TestE2E(t *testing.T) {
@@ -41,9 +47,16 @@ var deprovision func() = func() {}
 var _ = BeforeSuite(func() {
 	// Configure test registry (hostnames, credentials, etc.)
 	configureRegistry()
+
+	val, ok := os.LookupEnv("IMAGE_DOMAIN")
+	if ok {
+		imageDomain = val
+		imageRegistry = dockerHost + "/" + imageDomain
+	}
+
 	deprovision = ctx.MustProvision(ctx.Ctx())
 
-	opm = opmroot.NewCmd() // Creating multiple instances would cause flag registration conflicts
+	opm = opmroot.NewCmd(false) // Creating multiple instances would cause flag registration conflicts
 })
 
 func configureRegistry() {
@@ -59,6 +72,7 @@ func configureRegistry() {
 	case dockerHost == "" && dockerUsername != "" && dockerPassword != "":
 		// Set host to default registry
 		dockerHost = defaultRegistry
+		imageRegistry = dockerHost + "/" + imageDomain
 	}
 
 	// FIXME: Since podman login doesn't work with daemonless image pulling, we need to login with docker first so podman tests don't fail.

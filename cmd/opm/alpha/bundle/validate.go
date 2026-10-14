@@ -2,7 +2,6 @@ package bundle
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -11,7 +10,7 @@ import (
 
 	"github.com/operator-framework/operator-registry/pkg/containertools"
 	"github.com/operator-framework/operator-registry/pkg/image"
-	"github.com/operator-framework/operator-registry/pkg/image/containerdregistry"
+	"github.com/operator-framework/operator-registry/pkg/image/containersimageregistry"
 	"github.com/operator-framework/operator-registry/pkg/image/execregistry"
 	"github.com/operator-framework/operator-registry/pkg/lib/bundle"
 )
@@ -35,9 +34,13 @@ Optional validators. These validators are disabled by default and can be enabled
  * Operatorhub validator - performs operatorhub.io validation. To validate a bundle using custom categories use with the OPERATOR_BUNDLE_CATEGORIES environmental variable to point to a json-encoded categories file.
  * Bundle objects validator - performs validation on resources like PodDisruptionBudgets and PriorityClasses. 
 
-See https://olm.operatorframework.io/docs/tasks/validate-package/#validation for more info.`,
-		Example: `$ opm alpha bundle validate --tag quay.io/test/test-operator:latest --image-builder docker`,
-		RunE:    validateFunc,
+See https://olm.operatorframework.io/docs/tasks/validate-package/#validation for more info.
+
+Note that this subcommand is deprecated and will be removed in a future release. Migrate to operator-sdk bundle validate.`,
+		Example:    `$ opm alpha bundle validate --tag quay.io/test/test-operator:latest --image-builder docker`,
+		RunE:       validateFunc,
+		Args:       cobra.NoArgs,
+		Deprecated: "This subcommand is deprecated and will be removed in a future release. Migrate to operator-sdk bundle validate",
 	}
 
 	bundleValidateCmd.Flags().StringVarP(&tag, "tag", "t", "",
@@ -52,7 +55,7 @@ See https://olm.operatorframework.io/docs/tasks/validate-package/#validation for
 	return bundleValidateCmd
 }
 
-func validateFunc(cmd *cobra.Command, args []string) error {
+func validateFunc(cmd *cobra.Command, _ []string) error {
 	logger := log.WithFields(log.Fields{"container-tool": containerTool})
 	log.SetLevel(log.DebugLevel)
 
@@ -66,7 +69,7 @@ func validateFunc(cmd *cobra.Command, args []string) error {
 	case containertools.PodmanTool, containertools.DockerTool:
 		registry, err = execregistry.NewRegistry(tool, logger)
 	case containertools.NoneTool:
-		registry, err = containerdregistry.NewRegistry(containerdregistry.WithLog(logger))
+		registry, err = containersimageregistry.NewDefault()
 	default:
 		err = fmt.Errorf("unrecognized container-tool option: %s", containerTool)
 	}
@@ -76,7 +79,7 @@ func validateFunc(cmd *cobra.Command, args []string) error {
 	}
 	imageValidator := bundle.NewImageValidator(registry, logger, optional)
 
-	dir, err := ioutil.TempDir("", "bundle-")
+	dir, err := os.MkdirTemp("", "bundle-")
 	logger.Infof("Create a temp directory at %s", dir)
 	if err != nil {
 		return err

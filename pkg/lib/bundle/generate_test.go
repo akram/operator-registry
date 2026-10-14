@@ -2,13 +2,12 @@ package bundle
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v3"
 )
 
 func TestGetMediaType(t *testing.T) {
@@ -35,7 +34,7 @@ func TestGetMediaType(t *testing.T) {
 		{
 			"./testdata/get_mediatype/empty_bundle",
 			"",
-			fmt.Sprintf("The directory contains no files"),
+			"The directory contains no files",
 		},
 	}
 
@@ -56,12 +55,12 @@ func TestValidateAnnotations(t *testing.T) {
 		err      error
 	}{
 		{
-			buildTestAnnotations("annotations",
+			buildTestAnnotations(
 				map[string]string{
 					"test1": "stable",
 					"test2": "stable,beta",
 				}),
-			buildTestAnnotations("annotations",
+			buildTestAnnotations(
 				map[string]string{
 					"test1": "stable",
 					"test2": "stable,beta",
@@ -69,13 +68,13 @@ func TestValidateAnnotations(t *testing.T) {
 			nil,
 		},
 		{
-			buildTestAnnotations("annotations",
+			buildTestAnnotations(
 				map[string]string{
 					"test1": "stable",
 					"test2": "stable,beta",
 					"test3": "beta",
 				}),
-			buildTestAnnotations("annotations",
+			buildTestAnnotations(
 				map[string]string{
 					"test1": "stable",
 					"test2": "stable,beta",
@@ -83,12 +82,12 @@ func TestValidateAnnotations(t *testing.T) {
 			nil,
 		},
 		{
-			buildTestAnnotations("annotations",
+			buildTestAnnotations(
 				map[string]string{
 					"test1": "stable",
 					"test2": "stable",
 				}),
-			buildTestAnnotations("annotations",
+			buildTestAnnotations(
 				map[string]string{
 					"test1": "stable",
 					"test2": "stable,beta",
@@ -96,12 +95,12 @@ func TestValidateAnnotations(t *testing.T) {
 			fmt.Errorf(`Expect field "test2" to have value "stable,beta" instead of "stable"`),
 		},
 		{
-			buildTestAnnotations("annotations",
+			buildTestAnnotations(
 				map[string]string{
 					"test1": "stable",
 					"test3": "stable",
 				}),
-			buildTestAnnotations("annotations",
+			buildTestAnnotations(
 				map[string]string{
 					"test1": "stable",
 					"test2": "stable,beta",
@@ -110,7 +109,7 @@ func TestValidateAnnotations(t *testing.T) {
 		},
 		{
 			[]byte("\t"),
-			buildTestAnnotations("annotations",
+			buildTestAnnotations(
 				map[string]string{
 					"test1": "stable",
 					"test2": "stable,beta",
@@ -118,7 +117,7 @@ func TestValidateAnnotations(t *testing.T) {
 			fmt.Errorf("yaml: found character that cannot start any token"),
 		},
 		{
-			buildTestAnnotations("annotations",
+			buildTestAnnotations(
 				map[string]string{
 					"test1": "stable",
 					"test2": "stable,beta",
@@ -133,7 +132,7 @@ func TestValidateAnnotations(t *testing.T) {
 		if item.err != nil {
 			require.Equal(t, item.err.Error(), err.Error())
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -164,7 +163,7 @@ func TestGenerateAnnotationsFunc(t *testing.T) {
 }
 
 func TestGenerateDockerfile(t *testing.T) {
-	expected := `FROM scratch
+	expected := `FROM %s
 
 LABEL operators.operatorframework.io.bundle.mediatype.v1=test1
 LABEL operators.operatorframework.io.bundle.manifests.v1=test2
@@ -175,14 +174,24 @@ COPY a/b/c /manifests/
 COPY x/y/z /metadata/
 `
 
-	actual, err := GenerateDockerfile("test1", "test2", "metadata/", filepath.Join("a", "b", "c"), filepath.Join("x", "y", "z"), "./", "test4", "test5", "")
-	require.NoError(t, err)
-	require.Equal(t, expected, string(actual))
+	type DockerfileTest struct {
+		baseImage string
+	}
+	tests := []DockerfileTest{
+		{baseImage: "scratch"},
+		{baseImage: "registry/group/image@tag"},
+	}
+
+	for _, tt := range tests {
+		ttExpected := fmt.Sprintf(expected, tt.baseImage)
+		actual, err := GenerateDockerfile("test1", "test2", "metadata/", filepath.Join("a", "b", "c"), filepath.Join("x", "y", "z"), "./", "test4", "test5", "", tt.baseImage)
+		require.NoError(t, err)
+		require.Equal(t, ttExpected, string(actual))
+	}
 }
 
 func TestCopyYamlOutput(t *testing.T) {
-	testOutputDir, _ := ioutil.TempDir("./", "test-generate")
-	defer os.RemoveAll(testOutputDir)
+	testOutputDir := t.TempDir()
 
 	testContent := []byte{0, 1, 0, 0}
 	testManifestDir := "./testdata/generate/manifests"
@@ -195,12 +204,12 @@ func TestCopyYamlOutput(t *testing.T) {
 	require.Equal(t, filepath.Join(testOutputDir, "metadata/"), resultMetadataDir)
 
 	outputAnnotationsFile := filepath.Join(testOutputDir, "metadata/", "annotations.yaml")
-	annotationsBlob, err := ioutil.ReadFile(outputAnnotationsFile)
+	annotationsBlob, err := os.ReadFile(outputAnnotationsFile)
 	require.NoError(t, err)
 	require.Equal(t, testContent, annotationsBlob)
 
 	csvFile := filepath.Join(testOutputDir, "manifests/", "prometheusoperator.0.14.0.clusterserviceversion.yaml")
-	_, err = ioutil.ReadFile(csvFile)
+	_, err = os.ReadFile(csvFile)
 	require.NoError(t, err)
 }
 
@@ -216,7 +225,7 @@ func TestCopyYamlOutput_NoOutputDir(t *testing.T) {
 	require.Equal(t, filepath.Join(filepath.Dir(testManifestDir), "metadata/"), resultMetadataDir)
 
 	outputAnnotationsFile := filepath.Join(resultMetadataDir, "annotations.yaml")
-	annotationsBlob, err := ioutil.ReadFile(outputAnnotationsFile)
+	annotationsBlob, err := os.ReadFile(outputAnnotationsFile)
 	require.NoError(t, err)
 	require.Equal(t, testContent, annotationsBlob)
 
@@ -224,8 +233,7 @@ func TestCopyYamlOutput_NoOutputDir(t *testing.T) {
 }
 
 func TestCopyYamlOutput_NestedCopy(t *testing.T) {
-	testOutputDir, _ := ioutil.TempDir("./", "test-generate")
-	defer os.RemoveAll(testOutputDir)
+	testOutputDir := t.TempDir()
 
 	testContent := []byte{0, 1, 0, 0}
 	testManifestDir := "./testdata/generate/nested_manifests"
@@ -238,12 +246,12 @@ func TestCopyYamlOutput_NestedCopy(t *testing.T) {
 	require.Equal(t, filepath.Join(testOutputDir, "metadata/"), resultMetadataDir)
 
 	outputAnnotationsFile := filepath.Join(testOutputDir, "metadata/", "annotations.yaml")
-	annotationsBlob, err := ioutil.ReadFile(outputAnnotationsFile)
+	annotationsBlob, err := os.ReadFile(outputAnnotationsFile)
 	require.NoError(t, err)
 	require.Equal(t, testContent, annotationsBlob)
 
 	csvFile := filepath.Join(testOutputDir, "manifests/nested_manifests/", "prometheusoperator.0.14.0.clusterserviceversion.yaml")
-	_, err = ioutil.ReadFile(csvFile)
+	_, err = os.ReadFile(csvFile)
 	require.NoError(t, err)
 }
 
@@ -251,7 +259,7 @@ func TestGenerateFunc(t *testing.T) {
 	etcdPkgPath := "./testdata/etcd"
 	outputPath := "./testdata/tmp_output"
 	defer os.RemoveAll(outputPath)
-	err := GenerateFunc(filepath.Join(etcdPkgPath, "0.6.1"), outputPath, "", "", "", true)
+	err := GenerateFunc(filepath.Join(etcdPkgPath, "0.6.1"), outputPath, "", "", "", true, "scratch")
 	require.NoError(t, err)
 	os.Remove(filepath.Join("./", DockerFile))
 
@@ -263,7 +271,7 @@ func TestGenerateFunc(t *testing.T) {
 		"  operators.operatorframework.io.bundle.metadata.v1: metadata/\n" +
 		"  operators.operatorframework.io.bundle.package.v1: etcd\n")
 	outputAnnotationsFile := filepath.Join(outputPath, "metadata/", "annotations.yaml")
-	annotationsBlob, err := ioutil.ReadFile(outputAnnotationsFile)
+	annotationsBlob, err := os.ReadFile(outputAnnotationsFile)
 	require.NoError(t, err)
-	require.EqualValues(t, output, string(annotationsBlob))
+	require.Equal(t, output, string(annotationsBlob))
 }

@@ -2,52 +2,113 @@ package image_test
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math"
-	"math/rand"
+	"math/big"
 	"net/http"
+	"net/url"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 
-	"github.com/docker/distribution"
-	"github.com/docker/distribution/configuration"
-	"github.com/docker/distribution/reference"
-	repositorymiddleware "github.com/docker/distribution/registry/middleware/repository"
+	"github.com/distribution/distribution/v3"
+	"github.com/distribution/reference"
 	"github.com/opencontainers/go-digest"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"go.podman.io/image/v5/types"
 	"golang.org/x/mod/sumdb/dirhash"
 
+	libimage "github.com/operator-framework/operator-registry/internal/testutil/image"
 	"github.com/operator-framework/operator-registry/pkg/image"
 	"github.com/operator-framework/operator-registry/pkg/image/containerdregistry"
-	libimage "github.com/operator-framework/operator-registry/pkg/lib/image"
+	"github.com/operator-framework/operator-registry/pkg/image/containersimageregistry"
 )
 
 // cleanupFunc is a function that cleans up after some test infra.
 type cleanupFunc func()
 
 // newRegistryFunc is a function that creates and returns a new image.Registry to test its cleanupFunc.
-type newRegistryFunc func(t *testing.T, cafile string) (image.Registry, cleanupFunc)
+type newRegistryFunc func(t *testing.T, serverCert *x509.Certificate) (image.Registry, cleanupFunc)
 
-func poolForCertFile(t *testing.T, file string) *x509.CertPool {
-	rootCAs := x509.NewCertPool()
-	certs, err := ioutil.ReadFile(file)
+func caDirForCert(t *testing.T, serverCert *x509.Certificate) string {
+	caDir := t.TempDir()
+	caFile, err := os.Create(filepath.Join(caDir, "ca.crt"))
 	require.NoError(t, err)
-	require.True(t, rootCAs.AppendCertsFromPEM(certs))
+
+	require.NoError(t, pem.Encode(caFile, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: serverCert.Raw,
+	}))
+	require.NoError(t, caFile.Close())
+	return caDir
+}
+
+const insecureSignaturePolicy = `{
+    "default": [
+        {
+            "type": "insecureAcceptAnything"
+        }
+    ],
+    "transports":
+        {
+            "docker-daemon":
+                {
+                    "": [{"type":"insecureAcceptAnything"}]
+                }
+        }
+}`
+
+func createSignaturePolicyFile(t *testing.T) string {
+	policyDir := t.TempDir()
+	policyFilePath := filepath.Join(policyDir, "policy.json")
+	err := os.WriteFile(policyFilePath, []byte(insecureSignaturePolicy), 0600)
+	require.NoError(t, err)
+	return policyFilePath
+}
+
+func poolForCert(serverCert *x509.Certificate) *x509.CertPool {
+	rootCAs := x509.NewCertPool()
+	rootCAs.AddCert(serverCert)
 	return rootCAs
 }
 
 func TestRegistries(t *testing.T) {
 	registries := map[string]newRegistryFunc{
-		"containerd": func(t *testing.T, cafile string) (image.Registry, cleanupFunc) {
+		"containersimage": func(t *testing.T, serverCert *x509.Certificate) (image.Registry, cleanupFunc) {
+			caDir := caDirForCert(t, serverCert)
+			policyFile := createSignaturePolicyFile(t)
+			registriesConfPath := filepath.Join(t.TempDir(), "registries.conf")
+			require.NoError(t, os.WriteFile(registriesConfPath, []byte{}, 0600))
+			sourceCtx := &types.SystemContext{
+				OCICertPath:                 caDir,
+				DockerCertPath:              caDir,
+				DockerPerHostCertDirPath:    caDir,
+				SignaturePolicyPath:         policyFile,
+				SystemRegistriesConfPath:    registriesConfPath,
+				SystemRegistriesConfDirPath: t.TempDir(),
+			}
+			r, err := containersimageregistry.New(sourceCtx, containersimageregistry.WithTemporaryImageCache())
+			require.NoError(t, err)
+			cleanup := func() {
+				require.NoError(t, os.RemoveAll(caDir))
+				require.NoError(t, r.Destroy())
+			}
+			return r, cleanup
+		},
+		"containerd": func(t *testing.T, serverCert *x509.Certificate) (image.Registry, cleanupFunc) {
+			val, err := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
+			require.NoError(t, err)
 			r, err := containerdregistry.NewRegistry(
 				containerdregistry.WithLog(logrus.New().WithField("test", t.Name())),
-				containerdregistry.WithCacheDir(fmt.Sprintf("cache-%x", rand.Int())),
-				containerdregistry.WithRootCAs(poolForCertFile(t, cafile)),
+				containerdregistry.WithCacheDir(fmt.Sprintf("cache-%x", val)),
+				containerdregistry.WithRootCAs(poolForCert(serverCert)),
 			)
 			require.NoError(t, err)
 			cleanup := func() {
@@ -56,35 +117,23 @@ func TestRegistries(t *testing.T) {
 
 			return r, cleanup
 		},
-		// TODO: enable docker tests - currently blocked on a cross-platform way to configure either insecure registries
-		// or CA certs
-		//"docker": func(t *testing.T, cafile string) (image.Registry, cleanupFunc) {
-		//	r, err := execregistry.NewRegistry(containertools.DockerTool,
-		//		logrus.New().WithField("test", t.Name()),
-		//		cafile,
-		//	)
-		//	require.NoError(t, err)
-		//	cleanup := func() {
-		//		require.NoError(t, r.Destroy())
-		//	}
-		//
-		//	return r, cleanup
-		//},
-		// TODO: Enable buildah tests
-		// func(t *testing.T) image.Registry {
-		// 	r, err := buildahregistry.NewRegistry(
-		// 		buildahregistry.WithLog(logrus.New().WithField("test", t.Name())),
-		// 		buildahregistry.WithCacheDir(fmt.Sprintf("cache-%x", rand.Int())),
-		// 	)
-		// 	require.NoError(t, err)
-
-		// 	return r
-		// },
 	}
 
 	for name, registry := range registries {
 		testPullAndUnpack(t, name, registry)
 	}
+}
+
+type httpError struct {
+	statusCode int
+	error      error
+}
+
+func (e *httpError) Error() string {
+	if e.error != nil {
+		return e.error.Error()
+	}
+	return http.StatusText(e.statusCode)
 }
 
 func testPullAndUnpack(t *testing.T, name string, newRegistry newRegistryFunc) {
@@ -97,7 +146,18 @@ func testPullAndUnpack(t *testing.T, name string, newRegistry newRegistryFunc) {
 	type expected struct {
 		checksum      string
 		pullAssertion require.ErrorAssertionFunc
+		labels        map[string]string
 	}
+
+	expectedLabels := map[string]string{
+		"operators.operatorframework.io.bundle.mediatype.v1":       "registry+v1",
+		"operators.operatorframework.io.bundle.manifests.v1":       "manifests/",
+		"operators.operatorframework.io.bundle.metadata.v1":        "metadata/",
+		"operators.operatorframework.io.bundle.package.v1":         "kiali",
+		"operators.operatorframework.io.bundle.channels.v1":        "stable,alpha",
+		"operators.operatorframework.io.bundle.channel.default.v1": "stable",
+	}
+
 	tests := []struct {
 		description string
 		args        args
@@ -111,6 +171,19 @@ func testPullAndUnpack(t *testing.T, name string, newRegistry newRegistryFunc) {
 			},
 			expected: expected{
 				checksum:      dirChecksum(t, "testdata/golden/bundles/kiali"),
+				labels:        expectedLabels,
+				pullAssertion: require.NoError,
+			},
+		},
+		{
+			description: fmt.Sprintf("%s/ByTagWithDoubleUnderscore", name),
+			args: args{
+				dockerRootDir: "testdata/golden",
+				img:           "/olmtest/kiali:1.4__2",
+			},
+			expected: expected{
+				checksum:      dirChecksum(t, "testdata/golden/bundles/kiali"),
+				labels:        expectedLabels,
 				pullAssertion: require.NoError,
 			},
 		},
@@ -122,6 +195,7 @@ func testPullAndUnpack(t *testing.T, name string, newRegistry newRegistryFunc) {
 			},
 			expected: expected{
 				checksum:      dirChecksum(t, "testdata/golden/bundles/kiali"),
+				labels:        expectedLabels,
 				pullAssertion: require.NoError,
 			},
 		},
@@ -131,10 +205,11 @@ func testPullAndUnpack(t *testing.T, name string, newRegistry newRegistryFunc) {
 				dockerRootDir: "testdata/golden",
 				img:           "/olmtest/kiali:1.4.2",
 				pullErrCount:  1,
-				pullErr:       errors.New("dummy"),
+				pullErr:       &httpError{statusCode: http.StatusTooManyRequests},
 			},
 			expected: expected{
 				checksum:      dirChecksum(t, "testdata/golden/bundles/kiali"),
+				labels:        expectedLabels,
 				pullAssertion: require.NoError,
 			},
 		},
@@ -155,7 +230,7 @@ func testPullAndUnpack(t *testing.T, name string, newRegistry newRegistryFunc) {
 				dockerRootDir: "testdata/golden",
 				img:           "/olmtest/kiali:1.4.2",
 				pullErrCount:  math.MaxInt64,
-				pullErr:       errors.New("dummy"),
+				pullErr:       &httpError{statusCode: http.StatusTooManyRequests},
 			},
 			expected: expected{
 				pullAssertion: require.Error,
@@ -165,48 +240,43 @@ func testPullAndUnpack(t *testing.T, name string, newRegistry newRegistryFunc) {
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
 			logrus.SetLevel(logrus.DebugLevel)
-			ctx, close := context.WithCancel(context.Background())
-			defer close()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
-			configOpts := []libimage.ConfigOpt{}
-
+			var middlewares []func(next http.Handler) http.Handler
 			if tt.args.pullErrCount > 0 {
-				configOpts = append(configOpts, func(config *configuration.Configuration) {
-					if config.Middleware == nil {
-						config.Middleware = make(map[string][]configuration.Middleware)
-					}
-
-					mockRepo := &mockRepo{blobStore: &mockBlobStore{
-						maxCount: tt.args.pullErrCount,
-						err:      tt.args.pullErr,
-					}}
-					middlewareName := fmt.Sprintf("test-%x", rand.Int())
-					require.NoError(t, repositorymiddleware.Register(middlewareName, mockRepo.init))
-					config.Middleware["repository"] = append(config.Middleware["repository"], configuration.Middleware{
-						Name: middlewareName,
-					})
-				})
+				middlewares = append(middlewares, failureMiddleware(tt.args.pullErrCount, tt.args.pullErr))
 			}
 
-			host, cafile, err := libimage.RunDockerRegistry(ctx, tt.args.dockerRootDir, configOpts...)
-			require.NoError(t, err)
+			dockerServer := libimage.RunDockerRegistry(ctx, tt.args.dockerRootDir, middlewares...)
+			defer dockerServer.Close()
 
-			r, cleanup := newRegistry(t, cafile)
+			r, cleanup := newRegistry(t, dockerServer.Certificate())
 			defer cleanup()
 
-			ref := image.SimpleReference(host + tt.args.img)
-			tt.expected.pullAssertion(t, r.Pull(ctx, ref))
+			url, err := url.Parse(dockerServer.URL)
+			require.NoError(t, err)
 
-			if tt.expected.checksum != "" {
-				// Copy golden manifests to a temp dir
-				dir := "kiali-unpacked"
-				require.NoError(t, r.Unpack(ctx, ref, dir))
-
-				checksum := dirChecksum(t, dir)
-				require.Equal(t, tt.expected.checksum, checksum)
-
-				require.NoError(t, os.RemoveAll(dir))
+			ref := image.SimpleReference(fmt.Sprintf("%s%s", url.Host, tt.args.img))
+			t.Log("pulling image", ref)
+			pullErr := r.Pull(ctx, ref)
+			tt.expected.pullAssertion(t, pullErr)
+			if pullErr != nil {
+				return
 			}
+
+			labels, err := r.Labels(ctx, ref)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected.labels, labels)
+
+			// Copy golden manifests to a temp dir
+			dir := "kiali-unpacked"
+			require.NoError(t, r.Unpack(ctx, ref, dir))
+
+			checksum := dirChecksum(t, dir)
+			require.Equal(t, tt.expected.checksum, checksum)
+
+			require.NoError(t, os.RemoveAll(dir))
 		})
 	}
 }
@@ -233,19 +303,19 @@ func (f *mockRepo) init(ctx context.Context, base distribution.Repository, optio
 	return f, nil
 }
 
-func (f mockRepo) Named() reference.Named {
+func (f *mockRepo) Named() reference.Named {
 	return f.base.Named()
 }
 
-func (f mockRepo) Manifests(ctx context.Context, options ...distribution.ManifestServiceOption) (distribution.ManifestService, error) {
+func (f *mockRepo) Manifests(ctx context.Context, options ...distribution.ManifestServiceOption) (distribution.ManifestService, error) {
 	return f.base.Manifests(ctx, options...)
 }
 
-func (f mockRepo) Blobs(ctx context.Context) distribution.BlobStore {
+func (f *mockRepo) Blobs(ctx context.Context) distribution.BlobStore {
 	return f.blobStore
 }
 
-func (f mockRepo) Tags(ctx context.Context) distribution.TagService {
+func (f *mockRepo) Tags(ctx context.Context) distribution.TagService {
 	return f.base.Tags(ctx)
 }
 
@@ -270,30 +340,51 @@ func (f *mockBlobStore) Stat(ctx context.Context, dgst digest.Digest) (distribut
 	return f.base.Stat(ctx, dgst)
 }
 
-func (f mockBlobStore) Get(ctx context.Context, dgst digest.Digest) ([]byte, error) {
+func (f *mockBlobStore) Get(ctx context.Context, dgst digest.Digest) ([]byte, error) {
 	return f.base.Get(ctx, dgst)
 }
 
-func (f mockBlobStore) Open(ctx context.Context, dgst digest.Digest) (distribution.ReadSeekCloser, error) {
+func (f *mockBlobStore) Open(ctx context.Context, dgst digest.Digest) (io.ReadSeekCloser, error) {
 	return f.base.Open(ctx, dgst)
 }
 
-func (f mockBlobStore) Put(ctx context.Context, mediaType string, p []byte) (distribution.Descriptor, error) {
+func (f *mockBlobStore) Put(ctx context.Context, mediaType string, p []byte) (distribution.Descriptor, error) {
 	return f.base.Put(ctx, mediaType, p)
 }
 
-func (f mockBlobStore) Create(ctx context.Context, options ...distribution.BlobCreateOption) (distribution.BlobWriter, error) {
+func (f *mockBlobStore) Create(ctx context.Context, options ...distribution.BlobCreateOption) (distribution.BlobWriter, error) {
 	return f.base.Create(ctx, options...)
 }
 
-func (f mockBlobStore) Resume(ctx context.Context, id string) (distribution.BlobWriter, error) {
+func (f *mockBlobStore) Resume(ctx context.Context, id string) (distribution.BlobWriter, error) {
 	return f.base.Resume(ctx, id)
 }
 
-func (f mockBlobStore) ServeBlob(ctx context.Context, w http.ResponseWriter, r *http.Request, dgst digest.Digest) error {
+func (f *mockBlobStore) ServeBlob(ctx context.Context, w http.ResponseWriter, r *http.Request, dgst digest.Digest) error {
 	return f.base.ServeBlob(ctx, w, r, dgst)
 }
 
-func (f mockBlobStore) Delete(ctx context.Context, dgst digest.Digest) error {
+func (f *mockBlobStore) Delete(ctx context.Context, dgst digest.Digest) error {
 	return f.base.Delete(ctx, dgst)
+}
+
+func failureMiddleware(totalCount int, err error) func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		count := 0
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if count >= totalCount {
+				next.ServeHTTP(w, r)
+				return
+			}
+			count++
+			statusCode := http.StatusInternalServerError
+
+			var httpErr *httpError
+			if errors.As(err, &httpErr) {
+				statusCode = httpErr.statusCode
+			}
+
+			http.Error(w, err.Error(), statusCode)
+		})
+	}
 }

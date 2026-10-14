@@ -7,37 +7,27 @@ on:
     paths:
       - '**'
       - '!doc/**'
-jobs:
-  e2e-minikube:
-    runs-on: ubuntu-20.04
-    steps:
-      - uses: actions/checkout@v2
-      - run: |
-          sudo apt-get -y update
-          sudo apt-get -y install conntrack podman
-          podman version
-      - run: |
-          curl -sLo minikube "$(curl -sL https://api.github.com/repos/kubernetes/minikube/releases/latest | jq -r '[.assets[] | select(.name == "minikube-linux-amd64")] | first | .browser_download_url')"
-          chmod +x minikube
-          sudo mv minikube /bin/
-          minikube start --driver=none
-          sudo chown -R "$USER" "$HOME/.kube" "$HOME/.minikube"
-          sudo usermod -aG docker "$USER"
-      - run: |
-          "${GITHUB_WORKSPACE}/scripts/start_registry.sh" minikube-registry
-          export DOCKER_REGISTRY_HOST=localhost:443
-      - run: |
-          KUBECONFIG="$HOME/.kube/config" DOCKER_REGISTRY_HOST=localhost:443 make build e2e
+  merge_group:
 
-  e2e-kind:
-    runs-on: ubuntu-20.04
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - run: |
-          sudo apt-get -y update
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: 'go.mod'
+      - name: Install podman
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install podman
           podman version
-      - run: |
+      - name: Install kind
+        run: go install sigs.k8s.io/kind@$(go list -m -f '{{.Version}}' sigs.k8s.io/kind)
+      - name: Create kind cluster and setup local docker registry
+        run: |
           "${GITHUB_WORKSPACE}/scripts/start_registry.sh" kind-registry
           export DOCKER_REGISTRY_HOST=localhost:443
-      - run: |
+      - name: Run e2e tests
+        run: |
           KUBECONFIG="$HOME/.kube/config" DOCKER_REGISTRY_HOST=localhost:443 make build e2e CLUSTER=kind

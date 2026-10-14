@@ -4,14 +4,15 @@ import (
 	"fmt"
 	"strings"
 
-	. "github.com/onsi/ginkgo"
-	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
-	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	ginkgo "github.com/onsi/ginkgo/v2"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	kscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	k8scontrollerclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 )
 
 var ctx TestContext
@@ -39,7 +40,7 @@ func (ctx TestContext) Logf(f string, v ...interface{}) {
 	if !strings.HasSuffix(f, "\n") {
 		f += "\n"
 	}
-	fmt.Fprintf(GinkgoWriter, f, v...)
+	_, _ = fmt.Fprintf(ginkgo.GinkgoWriter, f, v...)
 }
 
 func (ctx TestContext) Scheme() *runtime.Scheme {

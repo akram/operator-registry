@@ -5,12 +5,12 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/operator-framework/operator-registry/pkg/api"
-	"github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/health/grpc_health_v1"
+
+	"github.com/operator-framework/operator-registry/pkg/api"
 )
 
 type RegistryClientStub struct {
@@ -18,6 +18,10 @@ type RegistryClientStub struct {
 	PackageName       string
 	Package           *api.Package
 	Error             error
+}
+
+func (s *RegistryClientStub) List(ctx context.Context, in *grpc_health_v1.HealthListRequest, opts ...grpc.CallOption) (*grpc_health_v1.HealthListResponse, error) {
+	return nil, nil
 }
 
 func (s *RegistryClientStub) ListPackages(ctx context.Context, in *api.ListPackageRequest, opts ...grpc.CallOption) (api.Registry_ListPackagesClient, error) {
@@ -62,6 +66,10 @@ func (s *RegistryClientStub) ListBundles(ctx context.Context, in *api.ListBundle
 }
 
 func (s *RegistryClientStub) Check(ctx context.Context, in *grpc_health_v1.HealthCheckRequest, opts ...grpc.CallOption) (*grpc_health_v1.HealthCheckResponse, error) {
+	return nil, nil
+}
+
+func (s *RegistryClientStub) Watch(ctx context.Context, in *grpc_health_v1.HealthCheckRequest, opts ...grpc.CallOption) (grpc_health_v1.Health_WatchClient, error) {
 	return nil, nil
 }
 

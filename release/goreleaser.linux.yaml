@@ -1,0 +1,113 @@
+version: 2
+builds:
+  - id: linux-amd64
+    main: ./cmd/opm
+    binary: opm
+    goos:
+      - linux
+    goarch:
+      - amd64
+    env:
+      - CC=gcc
+      - CGO_ENABLED=1
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags: &build-flags
+      - -tags=json1,netgo,osusergo,containers_image_openpgp
+    asmflags: &build-asmflags
+      - all=-trimpath={{ .Env.PWD }}
+    gcflags: &build-gcflags
+      - all=-trimpath={{ .Env.PWD }}
+    ldflags: &build-ldflags
+      - -s -w
+      - -extldflags=-static
+      - -X {{ .Env.PKG }}/cmd/opm/version.gitCommit={{ .Env.GIT_COMMIT }}
+      - -X {{ .Env.PKG }}/cmd/opm/version.opmVersion={{ .Env.OPM_VERSION }}
+      - -X {{ .Env.PKG }}/cmd/opm/version.buildDate={{ .Env.BUILD_DATE }}
+  - id: linux-arm64
+    main: ./cmd/opm
+    binary: opm
+    goos:
+      - linux
+    goarch:
+      - arm64
+    env:
+      - CC=aarch64-linux-gnu-gcc
+      - CGO_ENABLED=1
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags: *build-flags
+    asmflags: *build-asmflags
+    gcflags: *build-gcflags
+    ldflags: *build-ldflags
+  - id: linux-ppc64le
+    main: ./cmd/opm
+    binary: opm
+    goos:
+      - linux
+    goarch:
+      - ppc64le
+    env:
+      - CC=powerpc64le-linux-gnu-gcc
+      - CGO_ENABLED=1
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags: *build-flags
+    asmflags: *build-asmflags
+    gcflags: *build-gcflags
+    ldflags: *build-ldflags
+  - id: linux-s390x
+    main: ./cmd/opm
+    binary: opm
+    goos:
+      - linux
+    goarch:
+      - s390x
+    env:
+      - CC=s390x-linux-gnu-gcc
+      - CGO_ENABLED=1
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags: *build-flags
+    asmflags: *build-asmflags
+    gcflags: *build-gcflags
+    ldflags: *build-ldflags
+archives:
+  - id: opm
+    ids:
+      - linux-amd64
+      - linux-arm64
+      - linux-ppc64le
+      - linux-s390x
+    formats:
+      - binary
+    name_template: "{{ .Os }}-{{ .Arch }}-{{ .Binary }}"
+dockers_v2:
+  # IMAGE_TAG is either set by the Makefile or the goreleaser action workflow,
+  # This image is intended to be tagged/pushed on all trunk (master, release branch) commits and tags.
+  # Release image builds will be skipped if *_IMAGE_OR_EMPTY variables are empty.
+  - id: opm-multi-arch
+    ids:
+      - linux-amd64
+      - linux-arm64
+      - linux-ppc64le
+      - linux-s390x
+    dockerfile: release/goreleaser.opm.Dockerfile
+    extra_files:
+      - nsswitch.conf
+    platforms:
+      - linux/amd64
+      - linux/arm64
+      - linux/ppc64le
+      - linux/s390x
+    build_args:
+      GRPC_HEALTH_PROBE_VERSION: "{{ .Env.GRPC_HEALTH_PROBE_VERSION }}"
+    images:
+      - "{{ .Env.OPM_IMAGE_REPO }}"
+    tags:
+      - "{{ .Env.IMAGE_TAG }}"
+      - "{{ .Env.MAJ_MIN_IMAGE_OR_EMPTY }}"
+      - "{{ .Env.MAJ_IMAGE_OR_EMPTY }}"
+      - "{{ .Env.LATEST_IMAGE_OR_EMPTY }}"
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  version_template: "{{ .Env.OPM_VERSION }}"
+release:
+  disable: true

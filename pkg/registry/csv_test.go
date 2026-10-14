@@ -7,13 +7,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestClusterServiceVersion_GetApiServiceDefinitions(t *testing.T) {
 	type fields struct {
-		TypeMeta   v1.TypeMeta
-		ObjectMeta v1.ObjectMeta
+		TypeMeta   metav1.TypeMeta
+		ObjectMeta metav1.ObjectMeta
 		Spec       json.RawMessage
 	}
 	tests := []struct {
@@ -26,8 +26,8 @@ func TestClusterServiceVersion_GetApiServiceDefinitions(t *testing.T) {
 		{
 			name: "v1alpha1 with owned, required",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec: json.RawMessage(`
 				{ 
 				  "apiservicedefinitions": {
@@ -60,8 +60,8 @@ func TestClusterServiceVersion_GetApiServiceDefinitions(t *testing.T) {
 		{
 			name: "v1alpha1 with owned",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec: json.RawMessage(`
 				{ 
 				  "apiservicedefinitions": {
@@ -83,8 +83,8 @@ func TestClusterServiceVersion_GetApiServiceDefinitions(t *testing.T) {
 		{
 			name: "v1alpha1 with required",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec: json.RawMessage(`
 				{ 
 				  "apiservicedefinitions": {
@@ -106,16 +106,16 @@ func TestClusterServiceVersion_GetApiServiceDefinitions(t *testing.T) {
 		{
 			name: "v1alpha1 missing owned,required",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec:       json.RawMessage(`{"replaces": 5}`),
 			},
 		},
 		{
 			name: "v1alpha1 malformed owned,required",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec: json.RawMessage(`
 				{ 
 				  "apiservicedefinitions": {
@@ -151,8 +151,8 @@ func TestClusterServiceVersion_GetApiServiceDefinitions(t *testing.T) {
 
 func TestClusterServiceVersion_GetCustomResourceDefintions(t *testing.T) {
 	type fields struct {
-		TypeMeta   v1.TypeMeta
-		ObjectMeta v1.ObjectMeta
+		TypeMeta   metav1.TypeMeta
+		ObjectMeta metav1.ObjectMeta
 		Spec       json.RawMessage
 	}
 	tests := []struct {
@@ -165,8 +165,8 @@ func TestClusterServiceVersion_GetCustomResourceDefintions(t *testing.T) {
 		{
 			name: "v1alpha1 with owned, required",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec: json.RawMessage(`
 				{ 
 				  "customresourcedefinitions": {
@@ -199,8 +199,8 @@ func TestClusterServiceVersion_GetCustomResourceDefintions(t *testing.T) {
 		{
 			name: "v1alpha1 with owned",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec: json.RawMessage(`
 				{ 
 				  "customresourcedefinitions": {
@@ -222,8 +222,8 @@ func TestClusterServiceVersion_GetCustomResourceDefintions(t *testing.T) {
 		{
 			name: "v1alpha1 with required",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec: json.RawMessage(`
 				{ 
 				  "customresourcedefinitions": {
@@ -245,16 +245,16 @@ func TestClusterServiceVersion_GetCustomResourceDefintions(t *testing.T) {
 		{
 			name: "v1alpha1 missing owned,required",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec:       json.RawMessage(`{"replaces": 5}`),
 			},
 		},
 		{
 			name: "v1alpha1 malformed owned,required",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec: json.RawMessage(`
 				{ 
 				  "customresourcedefinitions": {
@@ -291,8 +291,8 @@ func TestClusterServiceVersion_GetCustomResourceDefintions(t *testing.T) {
 
 func TestClusterServiceVersion_GetReplaces(t *testing.T) {
 	type fields struct {
-		TypeMeta   v1.TypeMeta
-		ObjectMeta v1.ObjectMeta
+		TypeMeta   metav1.TypeMeta
+		ObjectMeta metav1.ObjectMeta
 		Spec       json.RawMessage
 	}
 	tests := []struct {
@@ -304,8 +304,8 @@ func TestClusterServiceVersion_GetReplaces(t *testing.T) {
 		{
 			name: "v1alpha1 with replaces",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec:       json.RawMessage(`{"replaces": "etcd-operator.v0.9.2"}`),
 			},
 			want: "etcd-operator.v0.9.2",
@@ -313,8 +313,8 @@ func TestClusterServiceVersion_GetReplaces(t *testing.T) {
 		{
 			name: "v1alpha1 no replaces",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec:       json.RawMessage(`{"other": "field"}`),
 			},
 			want: "",
@@ -322,8 +322,8 @@ func TestClusterServiceVersion_GetReplaces(t *testing.T) {
 		{
 			name: "v1alpha1 malformed replaces",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec:       json.RawMessage(`{"replaces": 5}`),
 			},
 			wantErr: true,
@@ -350,8 +350,8 @@ func TestClusterServiceVersion_GetReplaces(t *testing.T) {
 
 func TestClusterServiceVersion_GetSkips(t *testing.T) {
 	type fields struct {
-		TypeMeta   v1.TypeMeta
-		ObjectMeta v1.ObjectMeta
+		TypeMeta   metav1.TypeMeta
+		ObjectMeta metav1.ObjectMeta
 		Spec       json.RawMessage
 	}
 	tests := []struct {
@@ -363,8 +363,8 @@ func TestClusterServiceVersion_GetSkips(t *testing.T) {
 		{
 			name: "v1alpha1 with skips",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec:       json.RawMessage(`{"skips": ["1.0.5", "1.0.4"]}`),
 			},
 			want: []string{"1.0.5", "1.0.4"},
@@ -372,8 +372,8 @@ func TestClusterServiceVersion_GetSkips(t *testing.T) {
 		{
 			name: "v1alpha1 no skips",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec:       json.RawMessage(`{"other": "field"}`),
 			},
 			want: nil,
@@ -381,8 +381,8 @@ func TestClusterServiceVersion_GetSkips(t *testing.T) {
 		{
 			name: "v1alpha1 malformed skips",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec:       json.RawMessage(`{"skips": 5}`),
 			},
 			wantErr: true,
@@ -408,8 +408,8 @@ func TestClusterServiceVersion_GetSkips(t *testing.T) {
 
 func TestClusterServiceVersion_GetVersion(t *testing.T) {
 	type fields struct {
-		TypeMeta   v1.TypeMeta
-		ObjectMeta v1.ObjectMeta
+		TypeMeta   metav1.TypeMeta
+		ObjectMeta metav1.ObjectMeta
 		Spec       json.RawMessage
 	}
 	tests := []struct {
@@ -421,8 +421,8 @@ func TestClusterServiceVersion_GetVersion(t *testing.T) {
 		{
 			name: "v1alpha1 with version",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec:       json.RawMessage(`{"version": "1.0.5"}`),
 			},
 			want: "1.0.5",
@@ -430,8 +430,8 @@ func TestClusterServiceVersion_GetVersion(t *testing.T) {
 		{
 			name: "v1alpha1 no version",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec:       json.RawMessage(`{"other": "field"}`),
 			},
 			want: "",
@@ -439,8 +439,8 @@ func TestClusterServiceVersion_GetVersion(t *testing.T) {
 		{
 			name: "v1alpha1 malformed version",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec:       json.RawMessage(`{"version": 5}`),
 			},
 			wantErr: true,
@@ -465,10 +465,105 @@ func TestClusterServiceVersion_GetVersion(t *testing.T) {
 	}
 }
 
+func TestClusterServiceVersion_GetRelease(t *testing.T) {
+	type fields struct {
+		TypeMeta   metav1.TypeMeta
+		ObjectMeta metav1.ObjectMeta
+		Spec       json.RawMessage
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		want    string
+		wantErr bool
+	}{
+		{
+			name: "string release",
+			fields: fields{
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec:       json.RawMessage(`{"release": "1.0.0"}`),
+			},
+			want: "1.0.0",
+		},
+		{
+			name: "integer numeric release",
+			fields: fields{
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec:       json.RawMessage(`{"release": 20250104}`),
+			},
+			want: "20250104",
+		},
+		{
+			name: "float numeric release",
+			fields: fields{
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec:       json.RawMessage(`{"release": 0.20250104}`),
+			},
+			want: "0.20250104",
+		},
+		{
+			name: "large integer release",
+			fields: fields{
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec:       json.RawMessage(`{"release": 20250104235959}`),
+			},
+			want: "20250104235959",
+		},
+		{
+			name: "no release field",
+			fields: fields{
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec:       json.RawMessage(`{"other": "field"}`),
+			},
+			want: "",
+		},
+		{
+			name: "null release",
+			fields: fields{
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec:       json.RawMessage(`{"release": null}`),
+			},
+			want: "",
+		},
+		{
+			name: "invalid release type",
+			fields: fields{
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec:       json.RawMessage(`{"release": true}`),
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			csv := &ClusterServiceVersion{
+				TypeMeta:   tt.fields.TypeMeta,
+				ObjectMeta: tt.fields.ObjectMeta,
+				Spec:       tt.fields.Spec,
+			}
+			got, err := csv.GetRelease()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetRelease() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("GetRelease() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestClusterServiceVersion_GetRelatedImages(t *testing.T) {
 	type fields struct {
-		TypeMeta   v1.TypeMeta
-		ObjectMeta v1.ObjectMeta
+		TypeMeta   metav1.TypeMeta
+		ObjectMeta metav1.ObjectMeta
 		Spec       json.RawMessage
 	}
 	tests := []struct {
@@ -480,8 +575,8 @@ func TestClusterServiceVersion_GetRelatedImages(t *testing.T) {
 		{
 			name: "no related images",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec:       json.RawMessage(`{"no": "field"}`),
 			},
 			want: map[string]struct{}{},
@@ -489,8 +584,8 @@ func TestClusterServiceVersion_GetRelatedImages(t *testing.T) {
 		{
 			name: "one related image",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec: json.RawMessage(`{"relatedImages": [
 					{"name": "test", "image": "quay.io/etcd/etcd-operator@sha256:123"}
 				]}`),
@@ -500,8 +595,8 @@ func TestClusterServiceVersion_GetRelatedImages(t *testing.T) {
 		{
 			name: "multiple related images",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec: json.RawMessage(`{"relatedImages": [
 					{"name": "test", "image": "quay.io/etcd/etcd-operator@sha256:123"},
 					{"name": "operand", "image": "quay.io/etcd/etcd@sha256:123"}
@@ -529,8 +624,8 @@ func TestClusterServiceVersion_GetRelatedImages(t *testing.T) {
 
 func TestClusterServiceVersion_GetOperatorImages(t *testing.T) {
 	type fields struct {
-		TypeMeta   v1.TypeMeta
-		ObjectMeta v1.ObjectMeta
+		TypeMeta   metav1.TypeMeta
+		ObjectMeta metav1.ObjectMeta
 		Spec       json.RawMessage
 	}
 	tests := []struct {
@@ -542,8 +637,8 @@ func TestClusterServiceVersion_GetOperatorImages(t *testing.T) {
 		{
 			name: "bad strategy",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec: json.RawMessage(`
 				{"install": {"strategy": "nope", "spec": {"deployments":[{"name":"etcd-operator","spec":{"template":{"spec":{"containers":[{
 					"command":["etcd-operator"],
@@ -555,8 +650,8 @@ func TestClusterServiceVersion_GetOperatorImages(t *testing.T) {
 		{
 			name: "no images",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec: json.RawMessage(`
 				{"install": {"strategy": "deployment","spec": {"deployments":[{"name":"etcd-operator","spec":{"template":{"spec":
 					"containers":[]
@@ -568,8 +663,8 @@ func TestClusterServiceVersion_GetOperatorImages(t *testing.T) {
 		{
 			name: "one image",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec: json.RawMessage(`
 				{"install": {"strategy": "deployment", "spec": {"deployments":[{
 					"name":"etcd-operator",
@@ -592,8 +687,8 @@ func TestClusterServiceVersion_GetOperatorImages(t *testing.T) {
 		{
 			name: "two container images",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec: json.RawMessage(`
 				{"install": {"strategy": "deployment", "spec": {"deployments":[{
 					"name":"etcd-operator",
@@ -621,8 +716,8 @@ func TestClusterServiceVersion_GetOperatorImages(t *testing.T) {
 		{
 			name: "init container image",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec: json.RawMessage(`
 				{
 					"install": {
@@ -655,8 +750,8 @@ func TestClusterServiceVersion_GetOperatorImages(t *testing.T) {
 		{
 			name: "two init container images",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec: json.RawMessage(`
 				{
 					"install": {
@@ -694,8 +789,8 @@ func TestClusterServiceVersion_GetOperatorImages(t *testing.T) {
 		{
 			name: "container and init container",
 			fields: fields{
-				TypeMeta:   v1.TypeMeta{},
-				ObjectMeta: v1.ObjectMeta{},
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec: json.RawMessage(`
 				{
 					"install": {
@@ -740,7 +835,7 @@ func TestClusterServiceVersion_GetOperatorImages(t *testing.T) {
 					}
 				}`),
 			},
-			want: map[string]struct{}{"quay.io/coreos/etcd-operator2@sha256:c0301e4686c3ed4206e370b42de5a3bd2229b9fb4906cf85f3f30650424abec2": {}, "quay.io/coreos/etcd-operator@sha256:c0301e4686c3ed4206e370b42de5a3bd2229b9fb4906cf85f3f30650424abec2": struct{}{}, "quay.io/coreos/init-etcd-operator2@sha256:c0301e4686c3ed4206e370b42de5a3bd2229b9fb4906cf85f3f30650424abec2": {}, "quay.io/coreos/init-etcd-operator@sha256:c0301e4686c3ed4206e370b42de5a3bd2229b9fb4906cf85f3f30650424abec2": {}},
+			want: map[string]struct{}{"quay.io/coreos/etcd-operator2@sha256:c0301e4686c3ed4206e370b42de5a3bd2229b9fb4906cf85f3f30650424abec2": {}, "quay.io/coreos/etcd-operator@sha256:c0301e4686c3ed4206e370b42de5a3bd2229b9fb4906cf85f3f30650424abec2": {}, "quay.io/coreos/init-etcd-operator2@sha256:c0301e4686c3ed4206e370b42de5a3bd2229b9fb4906cf85f3f30650424abec2": {}, "quay.io/coreos/init-etcd-operator@sha256:c0301e4686c3ed4206e370b42de5a3bd2229b9fb4906cf85f3f30650424abec2": {}},
 		},
 	}
 	for _, tt := range tests {
@@ -817,21 +912,21 @@ func TestLoadingCsvFromBundleDirectory(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			assert.EqualValues(t, tt.name, csv.GetName())
+			assert.Equal(t, tt.name, csv.GetName())
 
 			csvVersion, err := csv.GetVersion()
-			assert.NoError(t, err)
-			assert.EqualValues(t, tt.version, csvVersion)
+			require.NoError(t, err)
+			assert.Equal(t, tt.version, csvVersion)
 
-			assert.EqualValues(t, tt.skipRange, csv.GetSkipRange())
+			assert.Equal(t, tt.skipRange, csv.GetSkipRange())
 
 			csvReplace, err := csv.GetReplaces()
-			assert.NoError(t, err)
-			assert.EqualValues(t, tt.replace, csvReplace)
+			require.NoError(t, err)
+			assert.Equal(t, tt.replace, csvReplace)
 
 			csvSkips, err := csv.GetSkips()
-			assert.NoError(t, err)
-			assert.EqualValues(t, tt.skips, csvSkips)
+			require.NoError(t, err)
+			assert.Equal(t, tt.skips, csvSkips)
 		})
 	}
 }

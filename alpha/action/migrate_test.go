@@ -1,0 +1,237 @@
+package action_test
+
+import (
+	"context"
+	"io/fs"
+	"os"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/operator-framework/operator-registry/alpha/action"
+	"github.com/operator-framework/operator-registry/alpha/declcfg"
+	"github.com/operator-framework/operator-registry/pkg/image"
+	"github.com/operator-framework/operator-registry/pkg/lib/bundle"
+)
+
+func TestMigrate(t *testing.T) {
+	type spec struct {
+		name          string
+		migrate       action.Migrate
+		expectedFiles map[string]string
+		expectErr     error
+	}
+
+	reg, err := newMigrateRegistry(t)
+	require.NoError(t, err)
+
+	specs := []spec{
+		{
+			name: "DeclcfgImage/Success",
+			migrate: action.Migrate{
+				CatalogRef: "test.registry/foo-operator/foo-index-declcfg:v0.2.0",
+				WriteFunc:  declcfg.WriteYAML,
+				FileExt:    ".yaml",
+				Registry:   reg,
+			},
+			expectedFiles: map[string]string{
+				"foo/catalog.yaml": migrateFooCatalogFBC(),
+			},
+		},
+		{
+			name: "DeclcfgDir/Success",
+			migrate: action.Migrate{
+				CatalogRef: "testdata/foo-index-v0.2.0-declcfg",
+				WriteFunc:  declcfg.WriteYAML,
+				FileExt:    ".yaml",
+				Registry:   reg,
+			},
+			expectedFiles: map[string]string{
+				"foo/catalog.yaml": migrateFooCatalogFBC(),
+			},
+		},
+		{
+			name: "BundleImage/Failure",
+			migrate: action.Migrate{
+				CatalogRef: "test.registry/foo-operator/foo-bundle:v0.1.0",
+				WriteFunc:  declcfg.WriteYAML,
+				FileExt:    ".yaml",
+				Registry:   reg,
+			},
+			expectErr: action.ErrNotAllowed,
+		},
+	}
+	for _, s := range specs {
+		t.Run(s.name, func(t *testing.T) {
+			s.migrate.OutputDir = t.TempDir()
+
+			err := s.migrate.Run(context.Background())
+			require.ErrorIs(t, err, s.expectErr)
+			if s.expectErr != nil {
+				return
+			}
+			actualFS := os.DirFS(s.migrate.OutputDir)
+			require.NoError(t, fs.WalkDir(actualFS, ".", func(path string, d fs.DirEntry, err error) error {
+				require.NoError(t, err)
+				if d.IsDir() {
+					return nil
+				}
+				actualData, err := fs.ReadFile(actualFS, path)
+				require.NoError(t, err)
+				expectedData, ok := s.expectedFiles[path]
+				require.True(t, ok, "output directory contained unexpected file %q", path)
+				require.Equal(t, expectedData, string(actualData))
+				return nil
+			}))
+		})
+	}
+}
+
+func newMigrateRegistry(_ *testing.T) (image.Registry, error) {
+	subDeclcfgImage, err := fs.Sub(declcfgImage, "testdata/foo-index-v0.2.0-declcfg")
+	if err != nil {
+		return nil, err
+	}
+
+	subBundleImageV1, err := fs.Sub(bundleImageV1, "testdata/foo-bundle-v0.1.0")
+	if err != nil {
+		return nil, err
+	}
+
+	reg := &image.MockRegistry{RemoteImages: map[image.Reference]*image.MockImage{
+		image.SimpleReference("test.registry/foo-operator/foo-index-declcfg:v0.2.0"): {
+			Labels: map[string]string{
+				"operators.operatorframework.io.index.configs.v1": "/foo",
+			},
+			FS: subDeclcfgImage,
+		},
+		image.SimpleReference("test.registry/foo-operator/foo-bundle:v0.1.0"): {
+			Labels: map[string]string{
+				bundle.PackageLabel: "foo",
+			},
+			FS: subBundleImageV1,
+		},
+	}}
+
+	return reg, nil
+}
+
+func migrateFooCatalogFBC() string {
+	return `---
+defaultChannel: beta
+name: foo
+properties:
+- type: owner
+  value:
+    group: abc.com
+    name: admin
+schema: olm.package
+---
+entries:
+- name: foo.v0.1.0
+  skipRange: <0.1.0
+- name: foo.v0.2.0
+  replaces: foo.v0.1.0
+  skipRange: <0.2.0
+  skips:
+  - foo.v0.1.1
+  - foo.v0.1.2
+name: beta
+package: foo
+properties:
+- type: user
+  value:
+    group: xyz.com
+    name: account
+schema: olm.channel
+---
+entries:
+- name: foo.v0.2.0
+  replaces: foo.v0.1.0
+  skipRange: <0.2.0
+  skips:
+  - foo.v0.1.1
+  - foo.v0.1.2
+name: stable
+package: foo
+schema: olm.channel
+---
+image: test.registry/foo-operator/foo-bundle:v0.1.0
+name: foo.v0.1.0
+package: foo
+properties:
+- type: olm.gvk
+  value:
+    group: test.foo
+    kind: Foo
+    version: v1
+- type: olm.gvk.required
+  value:
+    group: test.bar
+    kind: Bar
+    version: v1alpha1
+- type: olm.package
+  value:
+    packageName: foo
+    version: 0.1.0
+- type: olm.package.required
+  value:
+    packageName: bar
+    versionRange: <0.1.0
+- type: olm.bundle.object
+  value:
+    data: eyJhcGlWZXJzaW9uIjoib3BlcmF0b3JzLmNvcmVvcy5jb20vdjFhbHBoYTEiLCJraW5kIjoiQ2x1c3RlclNlcnZpY2VWZXJzaW9uIiwibWV0YWRhdGEiOnsiYW5ub3RhdGlvbnMiOnsib2xtLnNraXBSYW5nZSI6Ilx1MDAzYzAuMS4wIn0sIm5hbWUiOiJmb28udjAuMS4wIn0sInNwZWMiOnsiY3VzdG9tcmVzb3VyY2VkZWZpbml0aW9ucyI6eyJvd25lZCI6W3siZ3JvdXAiOiJ0ZXN0LmZvbyIsImtpbmQiOiJGb28iLCJuYW1lIjoiZm9vcy50ZXN0LmZvbyIsInZlcnNpb24iOiJ2MSJ9XX0sImRpc3BsYXlOYW1lIjoiRm9vIE9wZXJhdG9yIiwicmVsYXRlZEltYWdlcyI6W3siaW1hZ2UiOiJ0ZXN0LnJlZ2lzdHJ5L2Zvby1vcGVyYXRvci9mb286djAuMS4wIiwibmFtZSI6Im9wZXJhdG9yIn1dLCJ2ZXJzaW9uIjoiMC4xLjAifX0=
+- type: olm.bundle.object
+  value:
+    data: eyJhcGlWZXJzaW9uIjoiYXBpZXh0ZW5zaW9ucy5rOHMuaW8vdjEiLCJraW5kIjoiQ3VzdG9tUmVzb3VyY2VEZWZpbml0aW9uIiwibWV0YWRhdGEiOnsibmFtZSI6ImZvb3MudGVzdC5mb28ifSwic3BlYyI6eyJncm91cCI6InRlc3QuZm9vIiwibmFtZXMiOnsia2luZCI6IkZvbyIsInBsdXJhbCI6ImZvb3MifSwidmVyc2lvbnMiOlt7Im5hbWUiOiJ2MSJ9XX19
+relatedImages:
+- image: test.registry/foo-operator/foo-bundle:v0.1.0
+  name: ""
+- image: test.registry/foo-operator/foo:v0.1.0
+  name: operator
+schema: olm.bundle
+---
+image: test.registry/foo-operator/foo-bundle:v0.2.0
+name: foo.v0.2.0
+package: foo
+properties:
+- type: olm.gvk
+  value:
+    group: test.foo
+    kind: Foo
+    version: v1
+- type: olm.gvk.required
+  value:
+    group: test.bar
+    kind: Bar
+    version: v1alpha1
+- type: olm.package
+  value:
+    packageName: foo
+    version: 0.2.0
+- type: olm.package.required
+  value:
+    packageName: bar
+    versionRange: <0.1.0
+- type: olm.bundle.object
+  value:
+    data: eyJhcGlWZXJzaW9uIjoib3BlcmF0b3JzLmNvcmVvcy5jb20vdjFhbHBoYTEiLCJraW5kIjoiQ2x1c3RlclNlcnZpY2VWZXJzaW9uIiwibWV0YWRhdGEiOnsiYW5ub3RhdGlvbnMiOnsib2xtLnNraXBSYW5nZSI6Ilx1MDAzYzAuMi4wIn0sIm5hbWUiOiJmb28udjAuMi4wIn0sInNwZWMiOnsiY3VzdG9tcmVzb3VyY2VkZWZpbml0aW9ucyI6eyJvd25lZCI6W3siZ3JvdXAiOiJ0ZXN0LmZvbyIsImtpbmQiOiJGb28iLCJuYW1lIjoiZm9vcy50ZXN0LmZvbyIsInZlcnNpb24iOiJ2MSJ9XX0sImRpc3BsYXlOYW1lIjoiRm9vIE9wZXJhdG9yIiwiaW5zdGFsbCI6eyJzcGVjIjp7ImRlcGxveW1lbnRzIjpbeyJuYW1lIjoiZm9vLW9wZXJhdG9yIiwic3BlYyI6eyJ0ZW1wbGF0ZSI6eyJzcGVjIjp7ImNvbnRhaW5lcnMiOlt7ImltYWdlIjoidGVzdC5yZWdpc3RyeS9mb28tb3BlcmF0b3IvZm9vOnYwLjIuMCJ9XSwiaW5pdENvbnRhaW5lcnMiOlt7ImltYWdlIjoidGVzdC5yZWdpc3RyeS9mb28tb3BlcmF0b3IvZm9vLWluaXQ6djAuMi4wIn1dfX19fSx7Im5hbWUiOiJmb28tb3BlcmF0b3ItMiIsInNwZWMiOnsidGVtcGxhdGUiOnsic3BlYyI6eyJjb250YWluZXJzIjpbeyJpbWFnZSI6InRlc3QucmVnaXN0cnkvZm9vLW9wZXJhdG9yL2Zvby0yOnYwLjIuMCJ9XSwiaW5pdENvbnRhaW5lcnMiOlt7ImltYWdlIjoidGVzdC5yZWdpc3RyeS9mb28tb3BlcmF0b3IvZm9vLWluaXQtMjp2MC4yLjAifV19fX19XX0sInN0cmF0ZWd5IjoiZGVwbG95bWVudCJ9LCJyZWxhdGVkSW1hZ2VzIjpbeyJpbWFnZSI6InRlc3QucmVnaXN0cnkvZm9vLW9wZXJhdG9yL2Zvbzp2MC4yLjAiLCJuYW1lIjoib3BlcmF0b3IifSx7ImltYWdlIjoidGVzdC5yZWdpc3RyeS9mb28tb3BlcmF0b3IvZm9vLW90aGVyOnYwLjIuMCIsIm5hbWUiOiJvdGhlciJ9XSwicmVwbGFjZXMiOiJmb28udjAuMS4wIiwic2tpcHMiOlsiZm9vLnYwLjEuMSIsImZvby52MC4xLjIiXSwidmVyc2lvbiI6IjAuMi4wIn19
+- type: olm.bundle.object
+  value:
+    data: eyJhcGlWZXJzaW9uIjoiYXBpZXh0ZW5zaW9ucy5rOHMuaW8vdjEiLCJraW5kIjoiQ3VzdG9tUmVzb3VyY2VEZWZpbml0aW9uIiwibWV0YWRhdGEiOnsibmFtZSI6ImZvb3MudGVzdC5mb28ifSwic3BlYyI6eyJncm91cCI6InRlc3QuZm9vIiwibmFtZXMiOnsia2luZCI6IkZvbyIsInBsdXJhbCI6ImZvb3MifSwidmVyc2lvbnMiOlt7Im5hbWUiOiJ2MSJ9XX19
+relatedImages:
+- image: test.registry/foo-operator/foo-2:v0.2.0
+  name: ""
+- image: test.registry/foo-operator/foo-bundle:v0.2.0
+  name: ""
+- image: test.registry/foo-operator/foo-init-2:v0.2.0
+  name: ""
+- image: test.registry/foo-operator/foo-init:v0.2.0
+  name: ""
+- image: test.registry/foo-operator/foo-other:v0.2.0
+  name: other
+- image: test.registry/foo-operator/foo:v0.2.0
+  name: operator
+schema: olm.bundle
+`
+}
